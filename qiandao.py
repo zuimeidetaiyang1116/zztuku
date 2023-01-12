@@ -4,9 +4,11 @@
 # @Author : 张杰
 # @File :qiandao.py
 # @Software: PyCharm
-
+import re
+import datetime
 import requests
-import time
+from lxml import etree
+from pushplus import send_msg
 
 cookies = {
     'PHPSESSID': 'r225k1spluvamdcfi87u963el0',
@@ -42,30 +44,38 @@ headers = {
     'x-requested-with': 'XMLHttpRequest',
 }
 
-now = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+
+
+def get_qiandao_info():
+    response = requests.post('https://www.zztuku.com/user-signin.html', cookies=cookies, headers=headers)
+    result = "".join(re.findall('''\"msg\":\"(.*?)\"''', response.text))
+    return result
+
+
+def get_score():
+    response_text = requests.get('https://www.zztuku.com/user-logs.html', cookies=cookies, headers=headers).text
+    page_text = response_text.replace('\/', '/').replace(r'\"', '''"''').strip('"')
+    # print(page_text)
+    # with open('space.html', 'w', encoding='utf-8')as f:
+    #     f.write(page_text)
+    tree = etree.HTML(page_text)
+    score = "".join(tree.xpath('/html/body/header/div/div[4]/div/div[1]/p/text()')).strip('\xa0')
+    return score
 
 
 def task():
-    response = requests.post('https://www.zztuku.com/user-signin.html', cookies=cookies, headers=headers)
-    if response.status_code == 200:
-        print("请求成功！")
-    else:
-        print("请求失败！")
-    msg = f"{now}\t{response.json()}\n"
+    qiandao_info = get_qiandao_info()
+    print(qiandao_info)
+    score = get_score()
+    msg = f"站长图库\t张杰\t{now}\t{qiandao_info}\t积分【{score}】\n"
+    title = f'zj站长图库-{qiandao_info},{score}'
+    print(title, msg)
+    send_msg(title, msg, '')
     with open("log.txt", 'a', encoding='utf-8')as f:
         f.write(msg)
 
 
-def do_task():
-    from apscheduler.schedulers.background import BlockingScheduler
-    from apscheduler.triggers.date import DateTrigger
-    scheduler = BlockingScheduler()
-    # run_date =  '2022-12-16 06:00:01'
-    # intervalTrigger = DateTrigger(run_date=run_date)
-    print(now)
-    scheduler.add_job(task, 'interval', days=1, id='my_job_id', misfire_grace_time=600)
-    scheduler.start()
-
 
 if __name__ == '__main__':
-    do_task()
+    task()
